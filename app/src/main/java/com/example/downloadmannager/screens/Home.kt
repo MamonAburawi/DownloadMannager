@@ -12,12 +12,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
+import androidx.core.net.toUri
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import com.downloader.*
 import com.example.downloadmannager.R
-import com.example.downloadmannager.Utils
 import com.example.downloadmannager.databinding.HomeBinding
+import com.example.downloadmannager.utils.Utils
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.MultiplePermissionsReport
 import com.karumi.dexter.PermissionToken
@@ -36,8 +37,10 @@ class Home : Fragment() {
 
     private var fileId = 0
 
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         binding = DataBindingUtil.inflate(inflater, R.layout.home, container, false)
+
 
         setViews()
 
@@ -61,35 +64,11 @@ class Home : Fragment() {
                 }
             }
 
-            download.btnCancel.setOnClickListener {
-                PRDownloader.cancel(fileId)
-            }
-
 
         }
     }
 
 
-    private fun checkPermission(uri: String,fileName: String) {
-        Dexter.withContext(requireContext())
-            .withPermissions(
-                Manifest.permission.INTERNET,
-                Manifest.permission.ACCESS_NETWORK_STATE,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-
-            ).withListener(object : MultiplePermissionsListener {
-                override fun onPermissionsChecked(report: MultiplePermissionsReport) {  /* ... */
-                    download(uri,fileName)
-                }
-
-                override fun onPermissionRationaleShouldBeShown(
-                    permissions: List<PermissionRequest?>?,
-                    token: PermissionToken?
-                ) { /* ... */
-                }
-            }).check()
-    }
 
 
     private fun addTaskDialog() {
@@ -101,8 +80,7 @@ class Home : Fragment() {
         builder.setView(input)
         builder.setPositiveButton("OK") { dialog, which ->
             val uri = input.text.trim().toString()
-            val filename = Calendar.getInstance().time.toString()
-            checkPermission(uri,filename)
+            download(uri)
         }
         builder.setNegativeButton("Cancel") { dialog, which -> dialog.cancel() }
         builder.show()
@@ -110,9 +88,15 @@ class Home : Fragment() {
 
 
 
-    private fun download(uri: String, fileName: String) {
-        val dirPath = Utils.getRootDirPath(requireContext())
+
+    private fun download(uri: String) {
         binding.download.apply {
+
+        val fileFormat = Utils.getFileFormatByUri(uri.toUri(),requireContext()) // for ex: mp4 , jpg , png , application
+        val fileType = Utils.getFileTypeByUri(uri.toUri(),requireContext()) // for ex: image / video / audio
+        val fileName = "${Calendar.getInstance().time}.$fileFormat"
+        val dirPath = Utils.getRootDirPath(requireContext(),fileFormat)
+
 
             if (Status.RUNNING === PRDownloader.getStatus(fileId)) {
                 PRDownloader.pause(fileId)
@@ -128,60 +112,90 @@ class Home : Fragment() {
                 return
             }
 
-           val download = PRDownloader.download( uri, dirPath, fileName)
+           val downloadFile = PRDownloader.download( uri, dirPath, fileName)
                 .build()
-                .setOnStartOrResumeListener {
-                    progressBar.isIndeterminate = false
-                    btnStart.isEnabled = true
-                    btnStart.text = "Pause"
-                    btnCancel.isEnabled = true
-                }
-                .setOnPauseListener { btnStart.setText("Resume") }
-                .setOnCancelListener {
-                    btnStart.text = "Start"
-                    btnCancel.isEnabled = false
-                    progressBar.progress = 0
-                    progressStatus.text = ""
-                    fileId = 0
-                    progressBar.isIndeterminate = false
-                }
-                .setOnProgressListener { prog ->
-                    val progressPercent = prog.currentBytes * 100 / prog.totalBytes
-                    Log.d(TAG,"progress: $progressPercent")
-                    progressBar.progress = progressPercent.toInt()
-                    progressStatus.text = Utils.getProgressDisplayLine(prog.currentBytes, prog.totalBytes,progressPercent)
-                    progressBar.isIndeterminate = false
-                }
-                .start( object : OnDownloadListener {
-                    override fun onDownloadComplete() {
-                        progressBar.isEnabled = false
-                        btnCancel.isEnabled = false
-                        btnStart.text = "Complete"
-                    }
 
-                    override fun onError(error: Error) {
-                        btnStart.text = "Start"
-                        Log.e(TAG,"server error: ${error.serverErrorMessage}")
-                        Log.e(TAG,"connection Exception: ${error.connectionException}")
+              downloadFile .setOnStartOrResumeListener {
+                   progressBar.isIndeterminate = false
+                   btnStart.isEnabled = true
+                   btnStart.text = "Pause"
+                   btnCancel.isEnabled = true
+               }
+               .setOnPauseListener { btnStart.setText("Resume") }
+               .setOnCancelListener {
+                   btnStart.text = "Start"
+                   btnCancel.isEnabled = false
+                   progressBar.progress = 0
+                   progressStatus.text = ""
+                   fileId = 0
+                   progressBar.isIndeterminate = false
+               }
+               .setOnProgressListener { prog ->
+                   val progressPercent = prog.currentBytes * 100 / prog.totalBytes
+                   Log.d(TAG,"progress: $progressPercent")
+                   progressBar.progress = progressPercent.toInt()
+                   progressStatus.text = Utils.getProgressDisplayLine(prog.currentBytes, prog.totalBytes, progressPercent)
+                   progressBar.isIndeterminate = false
+               }
 
-                        Toast.makeText(requireContext(), "server error: ${error.serverErrorMessage} \n connection error: ${error.connectionException}" + " " + "1", Toast.LENGTH_SHORT).show()
-                        progressStatus.text = ""
-                        progressBar.progress = 0
-                        btnCancel.isEnabled = false
-                        progressBar.isIndeterminate = false
-                        fileId = 0
-                        btnStart.isEnabled = true
-                    }
+               .start( object : OnDownloadListener {
+                   override fun onDownloadComplete() {
+                       progressBar.isEnabled = false
+                       btnCancel.isEnabled = false
+                       btnStart.text = "Complete"
 
 
 
-                })
+                       Log.d(TAG,"downloadFile: \n" +
+                               "fileFormat: $fileFormat \n" +
+                               " downloadId: ${downloadFile.downloadId} \n" +
+                               "fileName: ${downloadFile.fileName} \n"+
+                               "downloadedBytes: ${downloadFile.downloadedBytes} \n"+
+                               "future: ${downloadFile.future} \n"+
+                               "dirPath: ${downloadFile.dirPath} \n"+
+                               "connectTimeout: ${downloadFile.connectTimeout} \n"+
+                               "readTimeout: ${downloadFile.readTimeout} \n"+
+                               "status: ${downloadFile.status} \n"+
+                               "url: ${downloadFile.url} \n"+
+                               "totalBytes: ${downloadFile.totalBytes} \n"
 
-            fileId = download
+                       )
+
+
+                   }
+
+                   override fun onError(error: Error) {
+                       btnStart.text = "Start"
+                       Log.e(TAG,"server error: ${error.serverErrorMessage}")
+                       Log.e(TAG,"connection Exception: ${error.connectionException}")
+
+                       Toast.makeText(requireContext(), "server error: ${error.serverErrorMessage} \n connection error: ${error.connectionException}" + " " + "1", Toast.LENGTH_SHORT).show()
+                       progressStatus.text = ""
+                       progressBar.progress = 0
+                       btnCancel.isEnabled = false
+                       progressBar.isIndeterminate = false
+                       fileId = 0
+                       btnStart.isEnabled = true
+                   }
+
+
+
+               })
+
+
+
+
+
+            fileId = downloadFile.downloadId
         }
 
     }
 
 
+
+
+    fun showMessage(t: String){
+        Toast.makeText(requireContext(),t,Toast.LENGTH_SHORT).show()
+    }
 
 }
