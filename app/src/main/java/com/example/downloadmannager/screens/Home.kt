@@ -1,6 +1,6 @@
 package com.example.downloadmannager.screens
 
-import android.Manifest
+
 import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.PorterDuff
@@ -16,14 +16,10 @@ import androidx.core.net.toUri
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
 import com.downloader.*
+import com.downloader.database.DownloadModel
 import com.example.downloadmannager.R
 import com.example.downloadmannager.databinding.HomeBinding
 import com.example.downloadmannager.utils.Utils
-import com.karumi.dexter.Dexter
-import com.karumi.dexter.MultiplePermissionsReport
-import com.karumi.dexter.PermissionToken
-import com.karumi.dexter.listener.PermissionRequest
-import com.karumi.dexter.listener.multi.MultiplePermissionsListener
 import java.util.*
 
 
@@ -34,7 +30,7 @@ class Home : Fragment() {
     }
 
     private lateinit var binding: HomeBinding
-
+//    private val taskAdapter by lazy { TaskAdapter() }
     private var fileId = 0
 
 
@@ -47,8 +43,12 @@ class Home : Fragment() {
         return binding.root
     }
 
+
+
+
     private fun setViews() {
         binding.apply {
+
 
 
             btnAddTask.setOnClickListener {
@@ -65,9 +65,13 @@ class Home : Fragment() {
             }
 
 
+            download.btnCancel.setOnClickListener {
+                PRDownloader.cancel(fileId)
+            }
+
+
         }
     }
-
 
 
 
